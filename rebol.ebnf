@@ -1,0 +1,265 @@
+/*
+REBOL Syntax
+2012 by Christopher Ross-Gill
+Based in Part on REBOLSource / REBOL Syntax by Earl, Ladislav and Steeve
+https://github.com/rebolsource/rebol-syntax/
+
+Designed for use with:
+http://railroad.my28msec.com/rr/ui
+
+For Future Ref:
+Words: http://issue.cc/r3/1302
+Space: https://github.com/dockimbel/Red/blob/master/red/lexer.r#L80
+*/
+
+Values ::= WhiteSpace? (Value (WhiteSpace? Value)*)? WhiteSpace?
+
+Value ::= Number | OtherValue | AnyString | Path | AnyWord | Paren | Block
+
+
+WhiteSpace ::= (Space | Comment)+
+
+Space ::= CharSpace+
+
+CharSpace ::= [#x9#xA#xD#x20#x7F]
+
+Term ::= #x0 [#x0-#xFFFFFF]*
+
+Comment ::= ';' [^#x0#xA#xD]*
+
+
+Number ::= Percent | Decimal | Integer
+
+OtherValue ::= Char | Date | Money | Pair | Time | Tuple | Literal /* | Range */
+
+AnyString ::= Binary | Email | File | Issue | String | Tag | Url
+
+AnyWord ::= GetWord | SetWord | LitWord | Word | Refinement
+
+Path ::= AnyWord ("/" (Number | String | OtherValue | AnyWord | Paren))+
+
+Paren ::= "(" Values ")"
+
+Block ::= "[" Values "]"
+
+
+Integer ::= Sign? Digit (Digit | ThousandSeparator)*
+
+Decimal ::= Sign? (
+  	  Digit (Digit | ThousandSeparator)* (DecimalExponent | DecimalSeparator (Digit | ThousandSeparator)* DecimalExponent?)
+		| DecimalSeparator Digit (Digit | ThousandSeparator)* DecimalExponent?
+	)
+
+Percent ::= (Decimal | Integer) '%'
+
+Money ::= Sign? (Alpha (Alpha Alpha?)?)? '$' (
+		  (Digit | ThousandSeparator)+ '.'?
+		| (Digit | ThousandSeparator)* '.' (Digit | ThousandSeparator)+
+	) DecimalExponent
+
+
+Char ::= '#"' (CharQuoted | CharEscaped) '"'
+
+
+
+
+Binary ::= BinaryBase2 | BinaryBase16 | BinaryBase64
+
+Email ::=
+	  ':' (CharEmail | ':' | '<')* '@' (CharEmail | ':' | '<')*
+	| CharEmail (CharEmail | '<')* '@' (CharEmail | '<')*
+
+File ::= '%' (StringQuoted | CharFile*)
+
+Issue ::= '#' CharIssue?
+
+String ::= StringQuoted | StringBraced
+
+Tag ::= '<' CharTagFirst CharTag* '>'
+
+Url ::= CharUrlFirst CharUrl* ':' (CharUrl | ':' | '/' | '@')+
+
+
+Date ::= DateDate ('/' Time DateZone?)?
+
+Pair ::= (Decimal | Integer) 'x' (Decimal | Integer)
+
+Time ::= TimeHour ':' TimeMinute (':' TimeSecond)? (([aA]|[pP])[mM])?
+
+Tuple ::= CharTuple CharTupleN CharTupleN (
+		CharTupleN (CharTupleN (CharTupleN (CharTupleN (CharTupleN (CharTupleN (CharTupleN)?)?)?)?)?)?
+	)?
+
+Word ::= WordSlash | WordCompare | CharSign | WordBase
+
+GetWord ::= ':' WordBase
+
+SetWord ::= WordBase ':'
+
+LitWord ::= "'" WordBase
+
+Refinement ::= '/' (Digit | CharWordFirst) Word
+
+Literal ::= '#' Block
+
+
+/*
+
+CharOK ::= [^#x00#x09#x0A#x0D#x20#x22#x28#x29#x2F#x5B#x5D#x7B#x7D#x7F]
+
+CharTerm ::= [#x00#x09#x0A#x0D#x20#x22#x28#x29#x2F#x5B#x5D#x7B#x7D#x7F]
+
+*/
+
+
+/* invalid path issue: http://issue.cc/r3/1905
+
+   words containing the slash character are exceptional:
+   they can contain only slashes
+   they do not have a lit-word syntax
+   they do not have a set-word syntax
+   they do not have a get-word syntax
+   they do not have a refinement syntax
+   they do not have a path syntax */
+
+WordSlash ::= '/'+
+
+/* words containing #"<" or #">" are exceptional:
+   there are only a few words like this
+   the words don't have a set-word syntax
+   the words don't have a refinement syntax */
+
+WordCompare ::= ('<' ('<' | '>' | '=')? | '>' ('=' | '>')?)
+
+/* the :x:y get-words don't have a word-syntax
+
+   the //x refinements don't have a word-syntax */
+
+/* words starting with #"+" or #"-" are exceptional:
+   the second character cannot be a digit
+   if the second character is #".", the third character cannot be a digit
+   the second character cannot be the apostrophe
+   they do not have a refinement syntax
+
+   words starting with #"." are exceptional:
+   the second character cannot be a digit
+   they do not have a refinement syntax
+   word followed by a tag http://issue.cc/r3/1903 */
+
+CharWordFirst ::= [a-zA-Z?!.*&|=_~`]
+
+CharWord ::= CharWordFirst | [0-9+-']
+
+WordBase ::= (CharSign ('.' "'"?)? | '.' "'"?)? CharWordFirst CharWord
+
+
+Sign ::= "+" | "-"
+
+CharSign ::= Sign
+
+Alpha ::= [a-zA-Z]
+
+Digit ::= [0-9]
+
+HexDigit ::= [0-9a-fA-F]
+
+ThousandSeparator ::= "'"
+
+DecimalSeparator ::= '.' | ','
+
+DecimalExponent ::= 'e' | 'E' Sign? Digit+
+
+StringQuoted ::= '"' (CharQuoted | CharEscaped)* '"'
+
+StringBraced ::= '{' (CharBraced | CharEscaped | StringBraced)
+
+CharQuoted ::= [^#x0#xA"^]
+
+CharBraced ::= [^#x0{}^]
+
+CharEscaped ::= '^' (
+		  '^' | '@' | '-' | '\' | '[' | ']' | '/' | '_' | [A-HK-Z]
+		| '(' (
+			  'line' | 'tab' | 'page' | 'back' | 'null' | 'escape'
+			| HexDigit HexDigit (HexDigit (HexDigit)?)?
+		) ')'
+	)
+
+BinaryBase2 ::= '2#{' Space? (
+		CharBase2 CharBase2 CharBase2 CharBase2 CharBase2 CharBase2 CharBase2 CharBase2
+	)* '}'
+
+BinaryBase16 ::= '16'? '#{' Space? (CharBase16 CharBase16)* '}'
+
+BinaryBase64 ::= '64#{' Space? (
+		CharBase64 CharBase64 CharBase64 CharBase64
+		(
+			  CharBase64 CharBase64 CharBase64 [=] Space?
+			| CharBase64 CharBase64 [=] Space? [=] Space?
+		)?
+	) '}'
+
+CharBase2 ::= [0-1] Space?
+
+CharBase16 ::= HexDigit Space?
+
+CharBase64 ::= [0-9+/a-yA-Z] Space?
+
+CharTuple ::= Digit | '0' Digit | Digit Digit | [0-1] Digit Digit | '2' ([0-4] Digit | '5' [0-5])
+
+CharTupleN ::= '.' CharTuple
+
+CharIssue ::= [^#x0#x9#xA#xD#x20#x22#x28#x29#x2F#x5B#x5D#x7B#x7D#x7F@$%:<>\#]
+
+/* Issue ::= '#' CharIssue+ */
+
+CharTagFirst ::= [^#x0#x9#xA#xD#x20#x7F=<>"#x5D]
+
+CharTag ::= [^>#x0]
+
+CharUrlEscape ::= '%' CharHex CharHex
+
+CharEmail ::= [^#x0#x9#xA#xD#x20#x22#x28#x29#x2F#x5B#x5D#x7B#x7D#x7F%@:<] | CharUrlEscape
+
+CharUrlFirst ::= [a-zA-Z?!.*&|=_~]
+
+CharUrl ::= CharUrlFirst | [0-9'+-,] | CharUrlEscape
+
+CharFile ::=
+	  [^#x0#x9#xA#xD#x20#x22#x28#x29#x5B#x5D#x7B#x7D#x7F%:@^] | CharUrlEscape
+	| '^' ('^' | '-' | '\' | '/' | '_' | [A-HK-Z])
+	
+TimeHour ::= Sign Digit* | Sign? Digit+
+
+TimeMinute ::= Sign? Digit Digit?
+
+TimeSecond ::= Sign? (Digit Digit? '.'? | (Digit Digit?)? '.' Digit*)
+
+DateZone ::= Sign Digit Digit? ':' ('0' | '3') '0'
+
+DateMonthName ::=
+	'Jan' ('u' ('a' ('r' 'y'?)?)?)? |
+	'Feb' ('r' ('u' ('a' ('r' 'y'?)?)?)?)? |
+	'Mar' ('c' 'h'?)? |
+	'Apr' ('i' 'l'?)? |
+	'May' |
+	'Jun' 'e'? |
+	'Jul' 'y'? |
+	'Aug' ('u' ('s' 't'?)?)? |
+	'Sep' ('t' ('e' ('m' ('b' ('e' 'r'?)?)?)?)?)? |
+	'Oct' ('o' ('b' ('e' 'r'?)?)?)? |
+	'Nov' ('e' ('m' ('b' ('e' 'r'?)?)?)?)? |
+	'Dec' ('e' ('m' ('b' ('e' 'r'?)?)?)?)? |
+	'1' ('0' | '1' | '2') | '0'? Digit
+
+DateDay ::= '3' ('0' | '1' | '2') | ('0' | '1' | '2')? Digit
+
+DateYear ::= digit (digit (digit (digit digit?)?)?)?
+
+DateDate ::=
+	  DateDay ('-' | '/') DateMonth ('-' | '/') DateYear
+	| DateYear ('-' | '/') DateMonth ('-' | '/') DateDay
+
+/*
+Range ::= (Decimal | Integer) '..' (Decimal | Integer)
+*/
